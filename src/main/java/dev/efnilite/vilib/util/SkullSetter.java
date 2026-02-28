@@ -47,7 +47,7 @@ public class SkullSetter {
             skullProfileField = craftMetaSkull.getDeclaredField("profile");
             skullProfileField.setAccessible(true);
         } catch (Exception ex) {
-            plugin.getLogger().warn("No new version found"+ ex.getMessage());;
+            Bukkit.getLogger().warning("No new version found: " + ex.getMessage());
         }
     }
 
