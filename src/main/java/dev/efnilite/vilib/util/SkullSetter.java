@@ -22,8 +22,8 @@ public class SkullSetter {
     private static Class<?> propertyClass;
     private static Constructor<?> gameProfileConstructor;
     private static Constructor<?> propertyConstructor;
-    private static Field propertiesField; // GameProfile.properties
-    private static Field skullProfileField; // SkullMeta.profile
+    private static Field skullProfileField;
+    private static Method propertyValueMethod;
 
     static {
         try {
@@ -39,15 +39,23 @@ public class SkullSetter {
         try {
             gameProfileClass = Class.forName("com.mojang.authlib.GameProfile");
             propertyClass = Class.forName("com.mojang.authlib.properties.Property");
-
+            
             gameProfileConstructor = gameProfileClass.getConstructor(UUID.class, String.class);
             propertyConstructor = propertyClass.getConstructor(String.class, String.class);
 
-            Class<?> craftMetaSkull = Class.forName(Bukkit.getServer().getClass().getPackage().getName() + ".inventory.CraftMetaSkull");
+            try {
+                propertyValueMethod = propertyClass.getMethod("value");
+            } catch (NoSuchMethodException e) {
+                propertyValueMethod = propertyClass.getMethod("getValue");
+            }
+
+            String packageName = Bukkit.getServer().getClass().getPackage().getName();
+            Class<?> craftMetaSkull = Class.forName(packageName + ".inventory.CraftMetaSkull");
             skullProfileField = craftMetaSkull.getDeclaredField("profile");
             skullProfileField.setAccessible(true);
-        } catch (Exception ex) {
-            Bukkit.getLogger().warning("No new version found: " + ex.getMessage());
+            
+        } catch (Exception e) {
+            Bukkit.getLogger().warning("[vilib] Failed to initialize reflection for skins: " + e.getMessage());
         }
     }
 
@@ -62,6 +70,8 @@ public class SkullSetter {
             boolean hasTexture = (boolean) hasTexturesMethod.invoke(playerProfile);
             if (hasTexture) {
                 setPlayerProfileMethod.invoke(meta, playerProfile);
+            } else {
+                meta.setOwningPlayer(player);
             }
         } catch (Exception ex) {
             meta.setOwningPlayer(player);
@@ -85,11 +95,9 @@ public class SkullSetter {
 
             if (textures != null && !textures.isEmpty()) {
                 Object property = textures.iterator().next();
-                Method getValue = property.getClass().getMethod("getValue");
-                return (String) getValue.invoke(property);
+                return (String) propertyValueMethod.invoke(property);
             }
         } catch (Exception e) {
-            e.printStackTrace();
         }
         return null;
     }
@@ -101,16 +109,15 @@ public class SkullSetter {
 
         try {
             Object profile = gameProfileConstructor.newInstance(UUID.randomUUID(), "custom_skin");
-
             Object property = propertyConstructor.newInstance("textures", texture);
 
             Method getProperties = gameProfileClass.getMethod("getProperties");
             Object propertyMap = getProperties.invoke(profile);
+            
             Method put = propertyMap.getClass().getMethod("put", Object.class, Object.class);
             put.invoke(propertyMap, "textures", property);
 
             skullProfileField.set(meta, profile);
-
         } catch (Exception e) {
             e.printStackTrace();
         }
