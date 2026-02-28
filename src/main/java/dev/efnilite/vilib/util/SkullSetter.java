@@ -23,7 +23,9 @@ public class SkullSetter {
     private static Constructor<?> gameProfileConstructor;
     private static Constructor<?> propertyConstructor;
     private static Field skullProfileField;
-    private static Method propertyValueMethod;
+    private static Method propertyValueMethod; 
+
+    private static Constructor<?> resolvableProfileConstructor;
 
     static {
         try {
@@ -53,6 +55,12 @@ public class SkullSetter {
             Class<?> craftMetaSkull = Class.forName(packageName + ".inventory.CraftMetaSkull");
             skullProfileField = craftMetaSkull.getDeclaredField("profile");
             skullProfileField.setAccessible(true);
+
+            try {
+                Class<?> resolvableProfileClass = Class.forName("net.minecraft.world.item.component.ResolvableProfile");
+                resolvableProfileConstructor = resolvableProfileClass.getConstructor(gameProfileClass);
+            } catch (ClassNotFoundException ignored) {
+            }
             
         } catch (Exception e) {
             Bukkit.getLogger().warning("[vilib] Failed to initialize reflection for skins: " + e.getMessage());
@@ -60,11 +68,10 @@ public class SkullSetter {
     }
 
     public static void setPlayerHead(OfflinePlayer player, SkullMeta meta) {
-        if (!isPaper) { // ew
+        if (!isPaper) {
             meta.setOwningPlayer(player);
             return;
         }
-
         try {
             Object playerProfile = getPlayerProfileMethod.invoke(player);
             boolean hasTexture = (boolean) hasTexturesMethod.invoke(playerProfile);
@@ -113,13 +120,18 @@ public class SkullSetter {
 
             Method getProperties = gameProfileClass.getMethod("getProperties");
             Object propertyMap = getProperties.invoke(profile);
-            
             Method put = propertyMap.getClass().getMethod("put", Object.class, Object.class);
             put.invoke(propertyMap, "textures", property);
 
-            skullProfileField.set(meta, profile);
+            Object valueToSet = profile;
+
+            if (resolvableProfileConstructor != null) {
+                valueToSet = resolvableProfileConstructor.newInstance(profile);
+            }
+
+            skullProfileField.set(meta, valueToSet);
+
         } catch (Exception e) {
-            e.printStackTrace();
         }
     }
 }
